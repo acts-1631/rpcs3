@@ -262,13 +262,6 @@ namespace clan
 		err = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, err_buf);
 		if (err != CURLE_OK) clan_log.error("curl_easy_setopt(CURLOPT_ERRORBUFFER): %s", curl_easy_strerror(err));
 
-		// WARN: This disables certificate verification!
-		err = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-		if (err != CURLE_OK) clan_log.error("curl_easy_setopt(CURLOPT_SSL_VERIFYHOST): %s", curl_easy_strerror(err));
-
-		err = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-		if (err != CURLE_OK) clan_log.error("curl_easy_setopt(CURLOPT_SSL_VERIFYPEER): %s", curl_easy_strerror(err));
-
 		err = curl_easy_setopt(curl, CURLOPT_POST, 1);
 		if (err != CURLE_OK) clan_log.error("curl_easy_setopt(CURLOPT_POST): %s", curl_easy_strerror(err));
 
