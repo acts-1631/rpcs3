@@ -831,6 +831,18 @@ bool package_reader::fill_data(std::map<std::string, install_entry*>& all_instal
 		return false;
 	}
 
+	const auto install_path = std::filesystem::weakly_canonical(m_install_path);
+	if (install_path.empty())
+	{
+		pkg_log.error("Failed to get weakly_canonical installation path for '%s'", m_install_path);
+		return false;
+	}
+
+	const auto is_inside_install_path = [&install_path](const std::filesystem::path& path)
+	{
+		return std::mismatch(install_path.begin(), install_path.end(), path.begin(), path.end()).first == install_path.end();
+	};
+
 	m_install_entries.clear();
 	m_bootable_file_path.clear();
 	m_entry_indexer = 0;
@@ -868,7 +880,39 @@ bool package_reader::fill_data(std::map<std::string, install_entry*>& all_instal
 
 		std::string_view name = fmt::trim_back_sv(name_buf, "\0"sv);
 
+		const std::filesystem::path entry_path{name};
+		if (entry_path.is_absolute())
+		{
+			num_failures++;
+			pkg_log.error("PKG entry path is absolute: '%s'", name);
+			break;
+		}
+
+		for (const auto& component : entry_path)
+		{
+			if (component == "." || component == "..")
+			{
+				num_failures++;
+				pkg_log.error("PKG entry path contains a special component: '%s'", name);
+				break;
+			}
+		}
+
+		if (num_failures)
+		{
+			break;
+		}
+
 		std::string path = m_install_path + vfs::escape(name);
+		const auto canonical_path = std::filesystem::weakly_canonical(path);
+		if (canonical_path.empty() || !is_inside_install_path(canonical_path))
+		{
+			num_failures++;
+			pkg_log.error("PKG entry path escapes installation directory: '%s'", name);
+			break;
+		}
+
+		path = canonical_path.string();
 
 		if (entry.pad || (entry.type & ~PKG_FILE_ENTRY_KNOWN_BITS))
 		{
@@ -906,15 +950,7 @@ bool package_reader::fill_data(std::map<std::string, install_entry*>& all_instal
 		default:
 		{
 			// TODO: check for valid utf8 characters
-			const std::string true_path = std::filesystem::weakly_canonical(path).string();
-			if (true_path.empty())
-			{
-				num_failures++;
-				pkg_log.error("Failed to get weakly_canonical path for '%s'", path);
-				break;
-			}
-
-			auto map_ptr = &*all_install_entries.try_emplace(true_path).first;
+			auto map_ptr = &*all_install_entries.try_emplace(path).first;
 
 			m_install_entries.push_back({
 				.weak_reference = map_ptr,
